@@ -21,7 +21,7 @@ User with roles:
 curl --request POST \
   --url http://localhost:3000/graphql \
   --header 'Content-Type: application/json' \
-  --header 'X-User: USER,ADMIN' \
+  --header 'X-User: u1' \
   --data '{"query":"query FullAccessRequest {\n  me {\n    id\n    name\n  }\n  posts {\n    id\n    author {\n      name\n    }\n  }\n}\n","operationName":"FullAccessRequest"}'
 ```
 
@@ -62,7 +62,7 @@ User with roles:
 curl --request POST \
   --url http://localhost:3000/graphql \
   --header 'Content-Type: application/json' \
-  --header 'X-User: USER' \
+  --header 'X-User: u2' \
   --data '{"query":"query PartialAccessRequest {\n  me {\n    id\n    name\n  }\n  posts {\n    id\n    author {\n      name\n    }\n  }\n}\n","operationName":"PartialAccessRequest"}'
 ```
 

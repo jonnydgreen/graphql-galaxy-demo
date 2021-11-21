@@ -20,12 +20,22 @@ async function createService (schema, resolvers = {}) {
 const users = {
   u1: {
     id: 'u1',
-    name: 'User 1'
+    name: 'User 1',
+    roles: ['ADMIN', 'USER']
   },
   u2: {
     id: 'u2',
-    name: 'User 2'
+    name: 'User 2',
+    roles: ['USER']
   }
+}
+
+async function getRoles (userId) {
+  const user = users[userId]
+  if (user) {
+    return user.roles
+  }
+  return []
 }
 
 const posts = {
@@ -79,7 +89,8 @@ async function start () {
   const userServiceResolvers = {
     Query: {
       me: (root, args, context, info) => {
-        return users.u1
+        console.log(context.reply.request.headers)
+        return users[context.reply.request.headers['x-user']]
       }
     },
     User: {
@@ -88,7 +99,10 @@ async function start () {
       }
     }
   }
-  const [, userServicePort] = await createService(userServiceSchema, userServiceResolvers)
+  const [, userServicePort] = await createService(
+    userServiceSchema,
+    userServiceResolvers
+  )
 
   // Post service
   const postServiceSchema = `
@@ -129,37 +143,51 @@ async function start () {
     },
     User: {
       posts: (user, { count }, context, info) => {
-        return Object.values(posts).filter(p => p.authorId === user.id).slice(0, count)
+        return Object.values(posts)
+          .filter((p) => p.authorId === user.id)
+          .slice(0, count)
       }
     },
     Query: {
       posts: (root, { count = 2 }) => Object.values(posts).slice(0, count)
     }
   }
-  const [, postServicePort] = await createService(postServiceSchema, postServiceResolvers)
+  const [, postServicePort] = await createService(
+    postServiceSchema,
+    postServiceResolvers
+  )
 
   const gateway = Fastify()
 
   gateway.register(mercurius, {
     gateway: {
-      services: [{
-        name: 'user',
-        url: `http://localhost:${userServicePort}/graphql`
-      }, {
-        name: 'post',
-        url: `http://localhost:${postServicePort}/graphql`
-      }]
+      services: [
+        {
+          name: 'user',
+          url: `http://localhost:${userServicePort}/graphql`,
+          rewriteHeaders (request) {
+            return {
+              'x-user': request['x-user']
+            }
+          }
+        },
+        {
+          name: 'post',
+          url: `http://localhost:${postServicePort}/graphql`
+        }
+      ]
     }
   })
 
   gateway.register(mercuriusAuth, {
     authContext (context) {
       return {
-        roles: (context.reply.request.headers['x-user'] || '').split(',')
+        identity: context.reply.request.headers['x-user']
       }
     },
     async applyPolicy (authDirectiveAST, parent, args, context, info) {
-      return context.auth.roles.includes(authDirectiveAST.arguments[0].value.value)
+      const roles = await getRoles(context.auth.identity)
+      return roles.includes(authDirectiveAST.arguments[0].value.value)
     },
     authDirective: 'auth'
   })
